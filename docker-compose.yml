@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./backend
+    image: devops-backend:1.0
+    container_name: backend
+    ports:
+      - "8000:8000"
+    networks:
+      - devops-network
+
+  frontend:
+    build:
+      context: ./frontend
+    image: devops-frontend:1.0
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_BACKEND_URL=http://backend:8000
+    depends_on:
+      - backend
+    networks:
+      - devops-network
+
+networks:
+  devops-network:
+    driver: bridge
