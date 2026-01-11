@@ -8,7 +8,6 @@ on:
 env:
   AWS_REGION: us-east-1
   AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
 
 jobs:
   deploy-aws:
@@ -16,6 +15,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -23,17 +25,23 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Force ECS Backend Deployment
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region $AWS_REGION \
+          | docker login --username AWS --password-stdin \
+          $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+
+      - name: Deploy Backend to ECS
         run: |
           aws ecs update-service \
-            --cluster devops-cluster \
+            --cluster devops-assignment-cluster \
             --service backend-service \
             --force-new-deployment
 
-      - name: Force ECS Frontend Deployment
+      - name: Deploy Frontend to ECS
         run: |
           aws ecs update-service \
-            --cluster devops-cluster \
+            --cluster devops-assignment-cluster \
             --service frontend-service \
             --force-new-deployment
 
@@ -44,6 +52,9 @@ jobs:
     needs: deploy-aws
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
@@ -51,11 +62,13 @@ jobs:
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Deploy Backend to Cloud Run
         run: |
           gcloud run deploy backend-service \
-            --image us-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/devops/backend:${{ github.sha }} \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/backend \
             --region us-central1 \
             --platform managed \
             --allow-unauthenticated
@@ -63,7 +76,8 @@ jobs:
       - name: Deploy Frontend to Cloud Run
         run: |
           gcloud run deploy frontend-service \
-            --image us-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/devops/frontend:${{ github.sha }} \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/frontend \
             --region us-central1 \
             --platform managed \
             --allow-unauthenticated
+
