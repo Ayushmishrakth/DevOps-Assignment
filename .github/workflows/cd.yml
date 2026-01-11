@@ -11,8 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -21,15 +20,13 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Deploy Backend to ECS
+      - name: Force ECS redeploy
         run: |
           aws ecs update-service \
             --cluster devops-assignment-cluster \
             --service backend-service \
             --force-new-deployment
 
-      - name: Deploy Frontend to ECS
-        run: |
           aws ecs update-service \
             --cluster devops-assignment-cluster \
             --service frontend-service \
@@ -37,13 +34,12 @@ jobs:
 
 
   deploy-gcp:
-    name: Deploy to GCP Cloud Run
+    name: Build & Deploy to GCP Cloud Run
     runs-on: ubuntu-latest
     needs: deploy-aws
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -56,8 +52,13 @@ jobs:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Configure Docker for GCR
+        run: gcloud auth configure-docker -q
+
+      # -------- BACKEND --------
+      - name: Build & Push Backend Image
         run: |
-          gcloud auth configure-docker -q
+          docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/backend:latest ./backend
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/backend:latest
 
       - name: Deploy Backend to Cloud Run
         run: |
@@ -66,6 +67,12 @@ jobs:
             --region us-central1 \
             --platform managed \
             --allow-unauthenticated
+
+      # -------- FRONTEND --------
+      - name: Build & Push Frontend Image
+        run: |
+          docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/frontend:latest ./frontend
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/frontend:latest
 
       - name: Deploy Frontend to Cloud Run
         run: |
