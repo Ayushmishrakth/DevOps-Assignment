@@ -1,25 +1,22 @@
-# =========================
-# Python
-# =========================
+
 __pycache__/
 *.pyc
 venv/
 .env
 
-# =========================
-# Node / Next.js
-# =========================
 node_modules/
 .next/
 npm-debug.log
 package-lock.json
 
-# =========================
-# Docker / Logs
-# =========================
+
+**/.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+
 *.log
 
-# =========================
-# OS Files
-# =========================
+
 .DS_Store
