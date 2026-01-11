@@ -5,17 +5,17 @@ on:
     branches:
       - develop
 
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+
 jobs:
-  # =========================
-  # BACKEND CI (TESTS)
-  # =========================
   backend-ci:
     name: Backend CI
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -31,21 +31,16 @@ jobs:
 
       - name: Run backend tests
         working-directory: backend
-        run: |
-          pytest
+        run: pytest
 
 
-  # =========================
-  # FRONTEND CI (BUILD)
-  # =========================
   frontend-ci:
     name: Frontend CI
     runs-on: ubuntu-latest
     needs: backend-ci
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -54,33 +49,27 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: |
-          npm ci
+        run: npm ci
 
       - name: Build frontend
         working-directory: frontend
-        run: |
-          npm run build
+        run: npm run build
 
 
-  # =========================
-  # BACKEND DOCKER BUILD & PUSH
-  # =========================
   docker-backend:
     name: Docker Backend Build & Push
     runs-on: ubuntu-latest
-    needs: backend-ci
+    needs: frontend-ci
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
@@ -88,35 +77,24 @@ jobs:
       - name: Build & Push Backend Image
         working-directory: backend
         run: |
-          IMAGE_TAG=${{ github.sha }}
-
-          docker build -t devops-backend:$IMAGE_TAG .
-
-          docker tag devops-backend:$IMAGE_TAG \
-            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/devops-backend:$IMAGE_TAG
-
-          docker push \
-            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/devops-backend:$IMAGE_TAG
+          docker build -t $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/devops-backend:${{ github.sha }} .
+          docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/devops-backend:${{ github.sha }}
 
 
-  # =========================
-  # FRONTEND DOCKER BUILD & PUSH
-  # =========================
   docker-frontend:
     name: Docker Frontend Build & Push
     runs-on: ubuntu-latest
-    needs: frontend-ci
+    needs: docker-backend
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
@@ -124,12 +102,5 @@ jobs:
       - name: Build & Push Frontend Image
         working-directory: frontend
         run: |
-          IMAGE_TAG=${{ github.sha }}
-
-          docker build -t devops-frontend:$IMAGE_TAG .
-
-          docker tag devops-frontend:$IMAGE_TAG \
-            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/devops-frontend:$IMAGE_TAG
-
-          docker push \
-            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/devops-frontend:$IMAGE_TAG
+          docker build -t $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/devops-frontend:${{ github.sha }} .
+          docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/devops-frontend:${{ github.sha }}
