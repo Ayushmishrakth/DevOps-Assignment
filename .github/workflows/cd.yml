@@ -1,0 +1,69 @@
+name: CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+
+jobs:
+  deploy-aws:
+    name: Deploy to AWS ECS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Force ECS Backend Deployment
+        run: |
+          aws ecs update-service \
+            --cluster devops-cluster \
+            --service backend-service \
+            --force-new-deployment
+
+      - name: Force ECS Frontend Deployment
+        run: |
+          aws ecs update-service \
+            --cluster devops-cluster \
+            --service frontend-service \
+            --force-new-deployment
+
+
+  deploy-gcp:
+    name: Deploy to GCP Cloud Run
+    runs-on: ubuntu-latest
+    needs: deploy-aws
+
+    steps:
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy Backend to Cloud Run
+        run: |
+          gcloud run deploy backend-service \
+            --image us-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/devops/backend:${{ github.sha }} \
+            --region us-central1 \
+            --platform managed \
+            --allow-unauthenticated
+
+      - name: Deploy Frontend to Cloud Run
+        run: |
+          gcloud run deploy frontend-service \
+            --image us-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/devops/frontend:${{ github.sha }} \
+            --region us-central1 \
+            --platform managed \
+            --allow-unauthenticated
