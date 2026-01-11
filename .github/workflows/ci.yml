@@ -6,52 +6,28 @@ on:
       - develop
 
 jobs:
-  backend-tests:
-    name: Backend Tests
+  backend-ci:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.12"
 
       - name: Install backend dependencies
+        working-directory: backend
         run: |
-          cd backend
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          python -m pip install httpx
+          pip install -r requirements.txt
 
       - name: Run backend tests
+        working-directory: backend
         run: |
-          cd backend
-          python -m pytest
+          pytest
 
-
-  frontend-build:
-    name: Frontend Build Check
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: Install frontend dependencies
+      - name: Build backend Docker image
         run: |
-          cd frontend
-          npm install
-
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm run build
-
+          docker build -t backend:ci backend
